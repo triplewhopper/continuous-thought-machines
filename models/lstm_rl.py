@@ -5,8 +5,8 @@ import numpy as np
 import math
 
 # Local imports (Assuming these contain necessary custom modules)
-from models.modules import *
-from models.utils import * # Assuming compute_decay, compute_normalized_entropy are here
+from models.modules import MiniGridBackbone, ClassicControlBackbone
+from models.utils import compute_decay, compute_normalized_entropy
 
 
 class LSTMBaseline(nn.Module):
@@ -21,12 +21,7 @@ class LSTMBaseline(nn.Module):
         backbone_type (str): Type of feature extraction backbone (e.g., 'resnet18-2', 'none').
     """
 
-    def __init__(self,
-                 iterations,
-                 d_model,
-                 d_input,
-                 backbone_type,
-                 ):
+    def __init__(self, iterations: int, d_model: int, d_input: int, backbone_type: str):
         super(LSTMBaseline, self).__init__()
 
         # --- Core Parameters ---
@@ -48,19 +43,19 @@ class LSTMBaseline(nn.Module):
             lstm_cell_input_dim = d_input
 
         else:
-            raise NotImplemented('The only backbone supported for RL are for navigation (symbolic C x H x W inputs) and classic control (vectors of length D).')
+            raise NotImplementedError('The only backbone supported for RL are for navigation (symbolic C x H x W inputs) and classic control (vectors of length D).')
 
         # --- Core LSTM Modules ---
         self.lstm_cell = nn.LSTMCell(lstm_cell_input_dim, d_model)
         self.register_parameter('start_hidden_state', nn.Parameter(torch.zeros((d_model)).uniform_(-math.sqrt(1/(d_model)), math.sqrt(1/(d_model))), requires_grad=True))
         self.register_parameter('start_cell_state', nn.Parameter(torch.zeros((d_model)).uniform_(-math.sqrt(1/(d_model)), math.sqrt(1/(d_model))), requires_grad=True))
     
-    def compute_features(self, x):
+    def compute_features(self, x: torch.Tensor) -> torch.Tensor:
         """Applies backbone and positional embedding to input."""
         return self.backbone(x)
 
 
-    def forward(self, x, hidden_states, track=False):
+    def forward(self, x: torch.Tensor, hidden_states: tuple[torch.Tensor, torch.Tensor], track: bool = False):
         """
         Forward pass - Reverted to structure closer to user's working version.
         Executes T=iterations steps.

@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 
-def compute_ctc_loss(predictions, targets, blank_label=0):
+def compute_ctc_loss(predictions: torch.Tensor, targets: torch.Tensor, blank_label: int = 0) -> torch.Tensor:
     """
     Computes the Connectionist Temporal Classification (CTC) loss.
 
@@ -48,14 +49,14 @@ def compute_ctc_loss(predictions, targets, blank_label=0):
 
     return loss
 
-def sort_loss(predictions, targets):
+def sort_loss(predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
     """
     The sort task was used partly to show that ctc loss can work.
     """
     loss = compute_ctc_loss(predictions, targets, blank_label=predictions.shape[1]-1)
     return loss
 
-def image_classification_loss(predictions, certainties, targets, use_most_certain=True):
+def image_classification_loss(predictions: torch.Tensor, certainties: torch.Tensor, targets: torch.Tensor, use_most_certain: bool = True) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Computes the maze loss with auto-extending cirriculum.
 
@@ -82,7 +83,7 @@ def image_classification_loss(predictions, certainties, targets, use_most_certai
     loss = (loss_minimum_ce + loss_selected)/2
     return loss, loss_index_2
 
-def maze_loss(predictions, certainties, targets, cirriculum_lookahead=5, use_most_certain=True):
+def maze_loss(predictions: torch.Tensor, certainties: torch.Tensor, targets: torch.Tensor, cirriculum_lookahead: int = 5, use_most_certain: bool = True) -> tuple[torch.Tensor, torch.Tensor, np.ndarray]:
     """
     Computes the maze loss with auto-extending cirriculum.
 
@@ -134,7 +135,7 @@ def maze_loss(predictions, certainties, targets, cirriculum_lookahead=5, use_mos
     loss = ((loss_minimum_ce + loss_selected)/2).mean()
     return loss, loss_index_2, upto_where.detach().cpu().numpy()
 
-def parity_loss(predictions, certainties, targets, use_most_certain=True):
+def parity_loss(predictions: torch.Tensor, certainties: torch.Tensor, targets: torch.Tensor, use_most_certain: bool = True) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Computes the parity loss.
 
@@ -169,7 +170,7 @@ def parity_loss(predictions, certainties, targets, use_most_certain=True):
     return loss, loss_index_2
 
 
-def qamnist_loss(predictions, certainties, targets, use_most_certain=True):
+def qamnist_loss(predictions: torch.Tensor, certainties: torch.Tensor, targets: torch.Tensor, use_most_certain: bool = True) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Computes the qamnist loss over the last num_answer_steps steps.
 

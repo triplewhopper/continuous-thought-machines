@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch
 import numpy as np
 import math
+from typing import Literal, overload
 
 from models.modules import ParityBackbone, SynapseUNET, Squeeze, SuperLinear, LearnableFourierPositionalEncoding, MultiLearnableFourierPositionalEncoding, CustomRotationalEmbedding, CustomRotationalEmbedding1D, ShallowWide
 from models.resnet import prepare_resnet_backbone
@@ -12,6 +13,12 @@ from models.constants import (
     VALID_BACKBONE_TYPES,
     VALID_POSITIONAL_EMBEDDING_TYPES
 )
+
+type Float64NDArray = np.typing.NDArray[np.float64]
+type Int64NDArray = np.typing.NDArray[np.int64]
+type IntpNDArray = np.typing.NDArray[np.intp]
+type NeuronSelectType = Literal['random-pairing', 'first-last', 'random']
+type SynchType = Literal['action', 'out']
 
 class ContinuousThoughtMachine(nn.Module):
     """
@@ -78,25 +85,25 @@ class ContinuousThoughtMachine(nn.Module):
     """                               
 
     def __init__(self,
-                 iterations,
-                 d_model,
-                 d_input,
-                 heads,
-                 n_synch_out,
-                 n_synch_action,
-                 synapse_depth,
-                 memory_length,
-                 deep_nlms,
-                 memory_hidden_dims,
-                 do_layernorm_nlm,
-                 backbone_type,
-                 positional_embedding_type,
-                 out_dims,
-                 prediction_reshaper=[-1],
-                 dropout=0,
-                 dropout_nlm=None,
-                 neuron_select_type='random-pairing',  
-                 n_random_pairing_self=0,
+                 iterations: int,
+                 d_model: int,
+                 d_input: int,
+                 heads: int,
+                 n_synch_out: int,
+                 n_synch_action: int,
+                 synapse_depth: int,
+                 memory_length: int,
+                 deep_nlms: bool,
+                 memory_hidden_dims: int,
+                 do_layernorm_nlm: bool,
+                 backbone_type: str,
+                 positional_embedding_type: str,
+                 out_dims: int,
+                 prediction_reshaper: list[int] = [-1],
+                 dropout: float = 0,
+                 dropout_nlm: float | None = None,
+                 neuron_select_type: NeuronSelectType = 'random-pairing',  
+                 n_random_pairing_self: int = 0,
                  ):
         super(ContinuousThoughtMachine, self).__init__()
 
@@ -111,7 +118,7 @@ class ContinuousThoughtMachine(nn.Module):
         self.backbone_type = backbone_type
         self.out_dims = out_dims
         self.positional_embedding_type = positional_embedding_type
-        self.neuron_select_type = neuron_select_type
+        self.neuron_select_type: NeuronSelectType = neuron_select_type
         self.memory_length = memory_length
         dropout_nlm = dropout if dropout_nlm is None else dropout_nlm
 
@@ -148,10 +155,19 @@ class ContinuousThoughtMachine(nn.Module):
 
         # --- Output Procesing ---
         self.output_projector = nn.Sequential(nn.LazyLinear(self.out_dims))
+    
+    start_activated_state: nn.Parameter
+    start_trace: nn.Parameter
+    action_neuron_indices_left: torch.Tensor
+    action_neuron_indices_right: torch.Tensor # buffer
+    out_neuron_indices_left: torch.Tensor # buffer
+    out_neuron_indices_right: torch.Tensor # buffer
+    decay_params_action: nn.Parameter
+    decay_params_out: nn.Parameter
 
     # --- Core CTM Methods ---
 
-    def compute_synchronisation(self, activated_state, decay_alpha, decay_beta, r, synch_type):
+    def compute_synchronisation(self, activated_state: torch.Tensor, decay_alpha: torch.Tensor | None, decay_beta: torch.Tensor | None, r: torch.Tensor, synch_type: SynchType):
         """
         Computes synchronisation to be used as a vector representation. 
 
@@ -218,7 +234,7 @@ class ContinuousThoughtMachine(nn.Module):
         synchronisation = decay_alpha / (torch.sqrt(decay_beta))
         return synchronisation, decay_alpha, decay_beta
 
-    def compute_features(self, x):
+    def compute_features(self, x: torch.Tensor) -> torch.Tensor:
         """
         Compute the key-value features from the input data using the backbone. 
         """
@@ -229,7 +245,7 @@ class ContinuousThoughtMachine(nn.Module):
         kv = self.kv_proj(combined_features)
         return kv
 
-    def compute_certainty(self, current_prediction):
+    def compute_certainty(self, current_prediction: torch.Tensor) -> torch.Tensor:
         """
         Compute the certainty of the current prediction.
         
@@ -301,7 +317,7 @@ class ContinuousThoughtMachine(nn.Module):
         else:
             raise ValueError(f"Invalid backbone_type: {self.backbone_type}")
 
-    def get_positional_embedding(self, d_backbone):
+    def get_positional_embedding(self, d_backbone: int) -> nn.Module:
         """
         Get the positional embedding module.
 
@@ -332,7 +348,7 @@ class ContinuousThoughtMachine(nn.Module):
         else:
             raise ValueError(f"Invalid positional_embedding_type: {self.positional_embedding_type}")
 
-    def get_neuron_level_models(self, deep_nlms, do_layernorm_nlm, memory_length, memory_hidden_dims, d_model, dropout):
+    def get_neuron_level_models(self, deep_nlms: bool, do_layernorm_nlm: bool, memory_length: int, memory_hidden_dims: int, d_model: int, dropout: float):
         """
         Neuron level models are one of the core innovations of the CTM. They apply separate MLPs/linears to 
         each neuron.
@@ -364,7 +380,7 @@ class ContinuousThoughtMachine(nn.Module):
                 )
             )
 
-    def get_synapses(self, synapse_depth, d_model, dropout):
+    def get_synapses(self, synapse_depth: int, d_model: int, dropout: float):
         """
         The synapse model is the recurrent model in the CTM. It's purpose is to share information
         across neurons. If using depth of 1, this is just a simple single layer with nonlinearity and layernomr.
@@ -399,7 +415,7 @@ class ContinuousThoughtMachine(nn.Module):
             self.register_buffer(f'{synch_type}_neuron_indices_right', right)
             self.register_parameter(f'decay_params_{synch_type}', nn.Parameter(torch.zeros(synch_representation_size), requires_grad=True))
 
-    def initialize_left_right_neurons(self, synch_type, d_model, n_synch, n_random_pairing_self=0):
+    def initialize_left_right_neurons(self, synch_type: str, d_model: int, n_synch: int, n_random_pairing_self: int = 0):
         """
         Initialize the left and right neuron indices based on the neuron selection type.
         This complexity is owing to legacy experiments, but we retain that these types of
@@ -448,10 +464,10 @@ class ContinuousThoughtMachine(nn.Module):
         assert self.neuron_select_type in VALID_NEURON_SELECT_TYPES, \
             f"Invalid neuron selection type: {self.neuron_select_type}"
         
-        assert self.backbone_type in VALID_BACKBONE_TYPES + ['none'], \
+        assert self.backbone_type in VALID_BACKBONE_TYPES + ('none',), \
             f"Invalid backbone_type: {self.backbone_type}"
         
-        assert self.positional_embedding_type in VALID_POSITIONAL_EMBEDDING_TYPES + ['none'], \
+        assert self.positional_embedding_type in VALID_POSITIONAL_EMBEDDING_TYPES + ('none',), \
             f"Invalid positional_embedding_type: {self.positional_embedding_type}"
         
         if self.neuron_select_type == 'first-last':
@@ -461,7 +477,7 @@ class ContinuousThoughtMachine(nn.Module):
         if self.backbone_type=='none' and self.positional_embedding_type!='none':
             raise AssertionError("There should be no positional embedding if there is no backbone.")
 
-    def calculate_synch_representation_size(self, n_synch):
+    def calculate_synch_representation_size(self, n_synch: int) -> int:
         """
         Calculate the size of the synchronisation representation based on neuron selection type.
         """
@@ -473,16 +489,18 @@ class ContinuousThoughtMachine(nn.Module):
             raise ValueError(f"Invalid neuron selection type: {self.neuron_select_type}")
         return synch_representation_size
 
+    @overload
+    def forward(self, x: torch.Tensor, track: Literal[False] = False) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]: ...
+    @overload
+    def forward(self, x: torch.Tensor, track: Literal[True]) -> tuple[torch.Tensor, torch.Tensor, tuple[np.typing.NDArray[np.float32], np.typing.NDArray[np.float32]], np.typing.NDArray[np.float32], np.typing.NDArray[np.float32], np.typing.NDArray[np.float32]]: ...
 
-
-
-    def forward(self, x, track=False):
+    def forward(self, x: torch.Tensor, track: bool = False):
         B = x.size(0)
         device = x.device
 
         # --- Tracking Initialization ---
-        pre_activations_tracking = []
-        post_activations_tracking = []
+        pre_activations_tracking: list[np.ndarray[tuple[int, int], np.dtype[np.float32]]] = []
+        post_activations_tracking: list[np.ndarray[tuple[int, int], np.dtype[np.float32]]] = []
         synch_out_tracking = []
         synch_action_tracking = []
         attention_tracking = []
@@ -507,6 +525,8 @@ class ContinuousThoughtMachine(nn.Module):
         _, decay_alpha_out, decay_beta_out = self.compute_synchronisation(activated_state, None, None, r_out, synch_type='out')
         # Compute learned weighting for synchronisation
         
+        assert self.q_proj is not None
+        assert self.attention is not None
 
         # --- Recurrent Loop  ---
         for stepi in range(self.iterations):
@@ -543,6 +563,7 @@ class ContinuousThoughtMachine(nn.Module):
 
             # --- Tracking ---
             if track:
+                assert attn_weights is not None, "you should set need_weights=True in the attention module"
                 pre_activations_tracking.append(state_trace[:,:,-1].detach().cpu().numpy())
                 post_activations_tracking.append(activated_state.detach().cpu().numpy())
                 attention_tracking.append(attn_weights.detach().cpu().numpy())

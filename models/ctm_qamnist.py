@@ -1,29 +1,29 @@
 import torch
 import numpy as np
-from models.ctm import ContinuousThoughtMachine
+from models.ctm import ContinuousThoughtMachine, NeuronSelectType
 from models.modules import MNISTBackbone, QAMNISTIndexEmbeddings, QAMNISTOperatorEmbeddings
 
 class ContinuousThoughtMachineQAMNIST(ContinuousThoughtMachine):
     def __init__(self,
-                 iterations,
-                 d_model,
-                 d_input,
-                 heads,
-                 n_synch_out,
-                 n_synch_action,
-                 synapse_depth,
-                 memory_length,
-                 deep_nlms,
-                 memory_hidden_dims,
-                 do_layernorm_nlm,
-                 out_dims,
-                 iterations_per_digit,
-                 iterations_per_question_part,
-                 iterations_for_answering,
-                 prediction_reshaper=[-1],
-                 dropout=0,
-                 neuron_select_type='first-last',
-                 n_random_pairing_self=256
+                 iterations: int,
+                 d_model: int,
+                 d_input: int,
+                 heads: int,
+                 n_synch_out: int,
+                 n_synch_action: int,
+                 synapse_depth: int,
+                 memory_length: int,
+                 deep_nlms: bool,
+                 memory_hidden_dims: int,
+                 do_layernorm_nlm: bool,
+                 out_dims: int,
+                 iterations_per_digit: int,
+                 iterations_per_question_part: int,
+                 iterations_for_answering: int,
+                 prediction_reshaper: list[int] = [-1],
+                 dropout: float = 0,
+                 neuron_select_type: NeuronSelectType = 'first-last',
+                 n_random_pairing_self: int = 256
                  ):
         super().__init__(
             iterations=iterations,
@@ -70,14 +70,14 @@ class ContinuousThoughtMachineQAMNIST(ContinuousThoughtMachine):
 
     # --- Utilty Methods ---
 
-    def determine_step_type(self, total_iterations_for_digits, total_iterations_for_question, stepi: int):
+    def determine_step_type(self, total_iterations_for_digits: int, total_iterations_for_question: int, stepi: int):
         """Determine whether the current step is for digits, questions, or answers."""
         is_digit_step = stepi < total_iterations_for_digits
         is_question_step = total_iterations_for_digits <= stepi < total_iterations_for_digits + total_iterations_for_question
         is_answer_step = stepi >= total_iterations_for_digits + total_iterations_for_question
         return is_digit_step, is_question_step, is_answer_step
 
-    def determine_index_operator_step_type(self, total_iterations_for_digits, stepi: int):
+    def determine_index_operator_step_type(self, total_iterations_for_digits: int, stepi: int):
         """Determine whether the current step is for index or operator."""
         step_within_questions = stepi - total_iterations_for_digits
         if step_within_questions % (2 * self.iterations_per_question_part) < self.iterations_per_question_part:
@@ -88,7 +88,7 @@ class ContinuousThoughtMachineQAMNIST(ContinuousThoughtMachine):
             is_operator_step = True
         return is_index_step, is_operator_step
 
-    def get_kv_for_step(self, total_iterations_for_digits, total_iterations_for_question, stepi, x, z, prev_input=None, prev_kv=None):
+    def get_kv_for_step(self, total_iterations_for_digits: int, total_iterations_for_question: int, stepi: int, x: torch.Tensor, z: torch.Tensor, prev_input: torch.Tensor | None = None, prev_kv: torch.Tensor | None = None):
         """Get the key-value for the current step."""
         is_digit_step, is_question_step, is_answer_step = self.determine_step_type(total_iterations_for_digits, total_iterations_for_question, stepi)
 
@@ -123,7 +123,7 @@ class ContinuousThoughtMachineQAMNIST(ContinuousThoughtMachine):
 
 
 
-    def forward(self, x, z, track=False):
+    def forward(self, x: torch.Tensor, z: torch.Tensor, track: bool = False):
         B = x.size(0)
         device = x.device
 

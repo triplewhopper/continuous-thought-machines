@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import os
 from models.modules import Identity
+from typing import TypedDict, Unpack
 
 __all__ = [
     "ResNet",
@@ -13,7 +14,7 @@ __all__ = [
 ]
 
 
-def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
+def conv3x3(in_planes: int, out_planes: int, stride: int = 1, groups: int = 1, dilation: int = 1):
     """3x3 convolution with padding"""
     return nn.Conv2d(
         in_planes,
@@ -27,7 +28,7 @@ def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     )
 
 
-def conv1x1(in_planes, out_planes, stride=1):
+def conv1x1(in_planes: int, out_planes: int, stride: int = 1):
     """1x1 convolution"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
 
@@ -37,18 +38,16 @@ class BasicBlock(nn.Module):
 
     def __init__(
         self,
-        inplanes,
-        planes,
-        stride=1,
-        downsample=None,
-        groups=1,
+        inplanes: int,
+        planes: int,
+        stride: int = 1,
+        downsample: nn.Module | None = None,
+        groups: int = 1,
         base_width=64,
-        dilation=1,
-        norm_layer=None,
+        dilation: int = 1,
+        norm_layer: type[nn.Module] = nn.BatchNorm2d,
     ):
         super(BasicBlock, self).__init__()
-        if norm_layer is None:
-            norm_layer = nn.BatchNorm2d
         if groups != 1 or base_width != 64:
             raise ValueError("BasicBlock only supports groups=1 and base_width=64")
         if dilation > 1:
@@ -62,7 +61,7 @@ class BasicBlock(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         identity = x
 
         out = self.conv1(x)
@@ -86,18 +85,16 @@ class Bottleneck(nn.Module):
 
     def __init__(
         self,
-        inplanes,
-        planes,
-        stride=1,
-        downsample=None,
-        groups=1,
-        base_width=64,
-        dilation=1,
-        norm_layer=None,
+        inplanes: int,
+        planes: int,
+        stride: int = 1,
+        downsample: nn.Module | None = None,
+        groups: int = 1,
+        base_width: int = 64,
+        dilation: int = 1,
+        norm_layer: type[nn.Module] = nn.BatchNorm2d,
     ):
         super(Bottleneck, self).__init__()
-        if norm_layer is None:
-            norm_layer = nn.BatchNorm2d
         width = int(planes * (base_width / 64.0)) * groups
         # Both self.conv2 and self.downsample layers downsample the input when stride != 1
         self.conv1 = conv1x1(inplanes, width)
@@ -110,7 +107,7 @@ class Bottleneck(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         identity = x
 
         out = self.conv1(x)
@@ -141,22 +138,20 @@ class Bottleneck(nn.Module):
 class ResNet(nn.Module):
     def __init__(
         self,
-        in_channels,
-        feature_scales,
-        stride,
-        block,
-        layers,
-        num_classes=10,
-        zero_init_residual=False,
-        groups=1,
-        width_per_group=64,
-        replace_stride_with_dilation=None,
-        norm_layer=None,
-        do_initial_max_pool=True,
+        in_channels: int,
+        feature_scales: list[int],
+        stride: int,
+        block: type[nn.Module],
+        layers: list[int],
+        num_classes: int = 10,
+        zero_init_residual: bool = False,
+        groups: int = 1,
+        width_per_group: int = 64,
+        replace_stride_with_dilation: list[bool] | None = None,
+        norm_layer: type[nn.Module] = nn.BatchNorm2d,
+        do_initial_max_pool: bool = True,
     ):
         super(ResNet, self).__init__()
-        if norm_layer is None:
-            norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
 
         self.inplanes = 64
@@ -224,7 +219,7 @@ class ResNet(nn.Module):
                 elif isinstance(m, BasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
 
-    def _make_layer(self, block, planes, blocks, stride=1, dilate=False):
+    def _make_layer(self, block: type[BasicBlock] | type[Bottleneck], planes: int, blocks: int, stride: int = 1, dilate: bool = False):
         norm_layer = self._norm_layer
         downsample = None
         previous_dilation = self.dilation
@@ -237,7 +232,7 @@ class ResNet(nn.Module):
                 norm_layer(planes * block.expansion),
             )
 
-        layers = []
+        layers: list[nn.Module] = []
         layers.append(
             block(
                 self.inplanes,
@@ -265,7 +260,7 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         activations = []
         x = self.conv1(x)
         x = self.bn1(x)
@@ -282,8 +277,15 @@ class ResNet(nn.Module):
                     x = self.layer4(x)
         return x
 
+class _OptionalKwargs(TypedDict, total=False):
+    num_classes: int
+    zero_init_residual: bool
+    groups: int
+    width_per_group: int
+    replace_stride_with_dilation: list[bool]
+    norm_layer: type[nn.Module]
 
-def _resnet(in_channels, feature_scales, stride, arch, block, layers, pretrained, progress, device, do_initial_max_pool, **kwargs):
+def _resnet(in_channels: int, feature_scales: list[int], stride: int, arch: str, block: type[BasicBlock] | type[Bottleneck], layers: list[int], pretrained: bool, progress: bool, device: str, do_initial_max_pool: bool, **kwargs: Unpack[_OptionalKwargs]):
     model = ResNet(in_channels, feature_scales, stride, block, layers, do_initial_max_pool=do_initial_max_pool, **kwargs)
     if pretrained:
         assert in_channels==3
@@ -295,7 +297,7 @@ def _resnet(in_channels, feature_scales, stride, arch, block, layers, pretrained
     return model
 
 
-def resnet18(in_channels, feature_scales, stride=2, pretrained=False, progress=True, device="cpu", do_initial_max_pool=True, **kwargs):
+def resnet18(in_channels: int, feature_scales: list[int], stride: int = 2, pretrained: bool = False, progress: bool = True, device: str = "cpu", do_initial_max_pool: bool = True, **kwargs: Unpack[_OptionalKwargs]):
     """Constructs a ResNet-18 model.
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -306,7 +308,7 @@ def resnet18(in_channels, feature_scales, stride=2, pretrained=False, progress=T
     )
 
 
-def resnet34(in_channels, feature_scales, stride=2, pretrained=False, progress=True, device="cpu", do_initial_max_pool=True, **kwargs):
+def resnet34(in_channels: int, feature_scales: list[int], stride: int = 2, pretrained: bool = False, progress: bool = True, device: str = "cpu", do_initial_max_pool: bool = True, **kwargs: Unpack[_OptionalKwargs]):
     """Constructs a ResNet-34 model.
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -317,7 +319,7 @@ def resnet34(in_channels, feature_scales, stride=2, pretrained=False, progress=T
     )
 
 
-def resnet50(in_channels, feature_scales, stride=2, pretrained=False, progress=True, device="cpu", do_initial_max_pool=True, **kwargs):
+def resnet50(in_channels: int, feature_scales: list[int], stride: int = 2, pretrained: bool = False, progress: bool = True, device: str = "cpu", do_initial_max_pool: bool = True, **kwargs: Unpack[_OptionalKwargs]):
     """Constructs a ResNet-50 model.
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -328,7 +330,7 @@ def resnet50(in_channels, feature_scales, stride=2, pretrained=False, progress=T
     )
 
 
-def resnet101(in_channels, feature_scales, stride=2, pretrained=False, progress=True, device="cpu", do_initial_max_pool=True, **kwargs):
+def resnet101(in_channels: int, feature_scales: list[int], stride: int = 2, pretrained: bool = False, progress: bool = True, device: str = "cpu", do_initial_max_pool: bool = True, **kwargs: Unpack[_OptionalKwargs]):
     """Constructs a ResNet-50 model.
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -339,7 +341,7 @@ def resnet101(in_channels, feature_scales, stride=2, pretrained=False, progress=
     )
 
 
-def resnet152(in_channels, feature_scales, stride=2, pretrained=False, progress=True, device="cpu", do_initial_max_pool=True, **kwargs):
+def resnet152(in_channels: int, feature_scales: list[int], stride: int = 2, pretrained: bool = False, progress: bool = True, device: str = "cpu", do_initial_max_pool: bool = True, **kwargs: Unpack[_OptionalKwargs]):
     """Constructs a ResNet-50 model.
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -349,7 +351,7 @@ def resnet152(in_channels, feature_scales, stride=2, pretrained=False, progress=
         feature_scales, stride, "resnet152", Bottleneck, [3, 4, 36, 3], pretrained, progress, device, do_initial_max_pool, **kwargs
     )
 
-def prepare_resnet_backbone(backbone_type):
+def prepare_resnet_backbone(backbone_type: str):
       
     resnet_family = resnet18 # Default
     if '34' in backbone_type: resnet_family = resnet34

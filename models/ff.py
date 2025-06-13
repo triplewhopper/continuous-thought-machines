@@ -1,7 +1,8 @@
+import torch
 import torch.nn as nn
 
 # Local imports (Assuming these contain necessary custom modules)
-from models.modules import *
+from models.modules import Squeeze, Identity
 from models.resnet import resnet18, resnet34, resnet50, resnet101, resnet152
 
 
@@ -19,12 +20,7 @@ class FFBaseline(nn.Module):
         dropout (float): dropout in last layer
     """
 
-    def __init__(self,
-                 d_model,
-                 backbone_type,
-                 out_dims,
-                 dropout=0,
-                 ):
+    def __init__(self, d_model: int, backbone_type: str, out_dims: int, dropout: float = 0):
         super(FFBaseline, self).__init__()
 
         # --- Core Parameters ---
@@ -71,5 +67,5 @@ class FFBaseline(nn.Module):
         self.output_projector = nn.Sequential(nn.AdaptiveAvgPool2d((1, 1)), Squeeze(-1), Squeeze(-1), nn.LazyLinear(d_model), nn.ReLU(), nn.Dropout(dropout), nn.Linear(d_model, out_dims))
 
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.output_projector((self.backbone(self.initial_rgb(x))))

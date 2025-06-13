@@ -2,26 +2,29 @@ import torch
 import torch.nn as nn
 import numpy as np
 import math
-from models.ctm import ContinuousThoughtMachine
+from models.ctm import ContinuousThoughtMachine, SynchType
 from models.modules import MiniGridBackbone, ClassicControlBackbone, SynapseUNET
 from models.utils import compute_decay
 from models.constants import VALID_NEURON_SELECT_TYPES
+from typing import Literal
+
+type RLNeuronSelectType = Literal['first-last']
 
 class ContinuousThoughtMachineRL(ContinuousThoughtMachine):
     def __init__(self,
-                 iterations,
-                 d_model,
-                 d_input,
-                 n_synch_out,
-                 synapse_depth,
-                 memory_length,
-                 deep_nlms,
-                 memory_hidden_dims,
-                 do_layernorm_nlm,
-                 backbone_type,
-                 prediction_reshaper=[-1],
-                 dropout=0,
-                 neuron_select_type='first-last',
+                 iterations: int,
+                 d_model: int,
+                 d_input: int,
+                 n_synch_out: int,
+                 synapse_depth: int,
+                 memory_length: int,
+                 deep_nlms: bool,
+                 memory_hidden_dims: int,
+                 do_layernorm_nlm: bool,
+                 backbone_type: str,
+                 prediction_reshaper: list[int] = [-1],
+                 dropout: float = 0,
+                 neuron_select_type: RLNeuronSelectType = 'first-last',
                  ):
         super().__init__(
             iterations=iterations,
@@ -61,7 +64,7 @@ class ContinuousThoughtMachineRL(ContinuousThoughtMachine):
 
     # --- Core CTM Methods ---
 
-    def compute_synchronisation(self, activated_state_trace):
+    def compute_synchronisation(self, activated_state_trace: torch.Tensor):
         """Compute the synchronisation between neurons."""
         assert self.neuron_select_type == "first-last", "only fisrst-last neuron selection is supported here"
         # For RL tasks we track a sliding window of activations from which we compute synchronisation
@@ -96,7 +99,7 @@ class ContinuousThoughtMachineRL(ContinuousThoughtMachine):
         return None
 
 
-    def get_synapses(self, synapse_depth, d_model, dropout):
+    def get_synapses(self, synapse_depth: int, d_model: int, dropout: float):
         """
         Get the synapse module.
 
@@ -118,7 +121,7 @@ class ContinuousThoughtMachineRL(ContinuousThoughtMachine):
         else:
             return SynapseUNET(d_model, synapse_depth, 16, dropout)
 
-    def set_synchronisation_parameters(self, synch_type: str, n_synch: int, n_random_pairing_self: int = 0):
+    def set_synchronisation_parameters(self, synch_type: SynchType, n_synch: int, n_random_pairing_self: int = 0):
         """Set the parameters for the synchronisation of neurons."""
         if synch_type == 'action':
             pass
@@ -148,7 +151,7 @@ class ContinuousThoughtMachineRL(ContinuousThoughtMachine):
     
 
 
-    def forward(self, x, hidden_states, track=False):
+    def forward(self, x: torch.Tensor, hidden_states: tuple[torch.Tensor, torch.Tensor], track: bool = False):
         
         # --- Tracking Initialization ---
         pre_activations_tracking = []

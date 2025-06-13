@@ -4,6 +4,11 @@ from torch.utils.data import Sampler
 import math
 import itertools
 import numpy as np
+from typing import TYPE_CHECKING
+from collections.abc import Sized
+
+if TYPE_CHECKING:
+    from data.custom_datasets import QAMNISTDataset
 
 class FastRandomDistributedSampler(Sampler[int]):
     r"""
@@ -27,7 +32,7 @@ class FastRandomDistributedSampler(Sampler[int]):
                          to reduce iterator recreation frequency. If None, it defaults
                          to ceil(len(dataset) / num_replicas).
     """
-    def __init__(self, dataset, num_replicas=None, rank=None, seed=0, epoch_steps=None):
+    def __init__(self, dataset: Sized, num_replicas: int | None = None, rank: int | None = None, seed: int = 0, epoch_steps: int | None = None):
         if num_replicas is None:
             if not dist.is_available() or not dist.is_initialized():
                 raise RuntimeError("Requires distributed package to be available and initialized")
@@ -90,7 +95,7 @@ class FastRandomDistributedSampler(Sampler[int]):
         self.epoch = epoch
 
 class QAMNISTSampler(Sampler):
-    def __init__(self, dataset, batch_size):
+    def __init__(self, dataset: "QAMNISTDataset", batch_size: int):
         self.dataset = dataset
         self.batch_size = batch_size
         self.num_samples = len(dataset)

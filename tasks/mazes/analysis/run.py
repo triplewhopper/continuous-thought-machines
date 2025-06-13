@@ -17,8 +17,22 @@ from models.ctm import ContinuousThoughtMachine
 from tasks.mazes.plotting import draw_path # 
 from tasks.image_classification.plotting import save_frames_to_mp4
 
-def has_solved_checker(x_maze, route, valid_only=True, fault_tolerance=1, exclusions=[]):
-    """Checks if a route solves a maze."""
+def has_solved_checker(x_maze: np.typing.NDArray[np.float64], route: np.typing.NDArray[np.int64], valid_only: bool = True, fault_tolerance: int = 1, exclusions: list[tuple[int, int]] = []) -> tuple[bool, tuple[int, int], int]:
+    """Checks if a route solves a maze.
+
+    Args:
+        x_maze: A numpy array of shape (H, W, 3) representing the maze.
+        route: A numpy array of shape (T,) representing the route.
+        valid_only: Whether to only consider valid steps.
+        fault_tolerance: The maximum number of mistakes allowed.
+        exclusions: A list of tuples representing the excluded positions.
+
+    Returns:
+        A tuple containing:
+        - A boolean indicating if the route solves the maze.
+        - A pair of integers representing the final position.
+        - The length of the path taken.
+    """
     maze = np.copy(x_maze)
     H, W, _ = maze.shape
     start_coords = np.argwhere((maze == [1, 0, 0]).all(axis=2))
@@ -91,7 +105,7 @@ def parse_args():
     parser.add_argument('--legacy_scaling', action=argparse.BooleanOptionalAction, default=True, help='Legacy checkpoints scale between 0 and 1, new ones can scale -1 to 1.')
     return parser.parse_args()
 
-def _load_ctm_model(checkpoint_path, device):
+def _load_ctm_model(checkpoint_path: str, device: str | torch.device):
     """Loads the ContinuousThoughtMachine model from a checkpoint."""
     print(f"Loading checkpoint: {checkpoint_path}")
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
@@ -103,7 +117,7 @@ def _load_ctm_model(checkpoint_path, device):
     
     # Ensure prediction_reshaper is derived correctly
     # Assuming out_dims exists and is used for this
-    prediction_reshaper = [model_args.out_dims // 5, 5] if hasattr(model_args, 'out_dims') else None
+    prediction_reshaper: list[int] | None = [model_args.out_dims // 5, 5] if hasattr(model_args, 'out_dims') else None
 
 
     if not hasattr(model_args, 'neuron_select_type'):

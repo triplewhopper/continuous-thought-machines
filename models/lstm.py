@@ -2,15 +2,13 @@ import torch.nn as nn
 import torch
 import numpy as np
 import math
+from typing import Any
 
 from models.modules import ParityBackbone, LearnableFourierPositionalEncoding, MultiLearnableFourierPositionalEncoding, CustomRotationalEmbedding, CustomRotationalEmbedding1D, ShallowWide
 from models.resnet import prepare_resnet_backbone
 from models.utils import compute_normalized_entropy
 
-from models.constants import (
-    VALID_BACKBONE_TYPES,
-    VALID_POSITIONAL_EMBEDDING_TYPES
-)
+from models.constants import VALID_BACKBONE_TYPES, VALID_POSITIONAL_EMBEDDING_TYPES
 
 class LSTMBaseline(nn.Module):
     """
@@ -29,16 +27,16 @@ class LSTMBaseline(nn.Module):
     """
 
     def __init__(self,
-                 iterations,
-                 d_model,
-                 d_input,
-                 heads,
-                 backbone_type,
-                 num_layers,
-                 positional_embedding_type,
-                 out_dims,
-                 prediction_reshaper=[-1],
-                 dropout=0,
+                 iterations: int,
+                 d_model: int,
+                 d_input: int,
+                 heads: int,
+                 backbone_type: str,
+                 num_layers: int,
+                 positional_embedding_type: str,
+                 out_dims: int,
+                 prediction_reshaper: list[int] = [-1],
+                 dropout: float = 0,
                  ):
         super(LSTMBaseline, self).__init__()
 
@@ -70,11 +68,12 @@ class LSTMBaseline(nn.Module):
         self.register_parameter('start_hidden_state', nn.Parameter(torch.zeros((num_layers, d_model)).uniform_(-math.sqrt(1/(d_model)), math.sqrt(1/(d_model))), requires_grad=True))
         self.register_parameter('start_cell_state', nn.Parameter(torch.zeros((num_layers, d_model)).uniform_(-math.sqrt(1/(d_model)), math.sqrt(1/(d_model))), requires_grad=True))
 
-
+    start_hidden_state: torch.nn.Parameter # size: (num_layers, d_model)
+    start_cell_state: torch.nn.Parameter # size: (num_layers, d_model)
 
     # --- Core LSTM Methods ---
 
-    def compute_features(self, x):
+    def compute_features(self, x: torch.Tensor) -> torch.Tensor:
         """Applies backbone and positional embedding to input."""
         x = self.initial_rgb(x)
         self.kv_features = self.backbone(x)
@@ -83,7 +82,7 @@ class LSTMBaseline(nn.Module):
         kv = self.kv_proj(combined_features)
         return kv
 
-    def compute_certainty(self, current_prediction):
+    def compute_certainty(self, current_prediction: torch.Tensor) -> torch.Tensor:
         """Compute the certainty of the current prediction."""
         B = current_prediction.size(0)
         reshaped_pred = current_prediction.reshape([B] +self.prediction_reshaper)
@@ -144,7 +143,7 @@ class LSTMBaseline(nn.Module):
         else:
             raise ValueError(f"Invalid backbone_type: {self.backbone_type}")
 
-    def get_positional_embedding(self, d_backbone):
+    def get_positional_embedding(self, d_backbone: int):
         """Get the positional embedding module."""
         if self.positional_embedding_type == 'learnable-fourier':
             return LearnableFourierPositionalEncoding(d_backbone, gamma=1 / 2.5)
@@ -159,7 +158,7 @@ class LSTMBaseline(nn.Module):
         else:
             raise ValueError(f"Invalid positional_embedding_type: {self.positional_embedding_type}")
 
-    def get_attention(self, heads, dropout):
+    def get_attention(self, heads: int, dropout: float):
         """Get the attention module."""
         return nn.MultiheadAttention(self.d_input, heads, dropout, batch_first=True)
 
@@ -175,10 +174,10 @@ class LSTMBaseline(nn.Module):
     def verify_args(self):
         """Verify the validity of the input arguments."""
 
-        assert self.backbone_type in VALID_BACKBONE_TYPES + ['none'], \
+        assert self.backbone_type in VALID_BACKBONE_TYPES + ('none',), \
             f"Invalid backbone_type: {self.backbone_type}"
         
-        assert self.positional_embedding_type in VALID_POSITIONAL_EMBEDDING_TYPES + ['none'], \
+        assert self.positional_embedding_type in VALID_POSITIONAL_EMBEDDING_TYPES + ('none',), \
             f"Invalid positional_embedding_type: {self.positional_embedding_type}"
         
         if self.backbone_type=='none' and self.positional_embedding_type!='none':
@@ -189,7 +188,7 @@ class LSTMBaseline(nn.Module):
 
 
 
-    def forward(self, x, track=False):
+    def forward(self, x: torch.Tensor, track: bool = False):
         """
         Forward pass - Reverted to structure closer to user's working version.
         Executes T=iterations steps.
@@ -198,8 +197,8 @@ class LSTMBaseline(nn.Module):
         device = x.device
 
         # --- Tracking Initialization ---
-        activations_tracking = []
-        attention_tracking = []
+        activations_tracking: list[np.ndarray[tuple[int, int], np.dtype[np.floating[Any]]]] = [] # list of (B, d_model)
+        attention_tracking: list[np.ndarray[tuple[int, int, int, int], np.dtype[np.floating[Any]]]] = [] # list of (B, heads, 1, L)
 
         # --- Featurise Input Data ---
         kv = self.compute_features(x)

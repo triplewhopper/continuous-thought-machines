@@ -3,8 +3,10 @@ import re
 import math
 from models.ctm import ContinuousThoughtMachine
 from models.lstm import LSTMBaseline
+import torch
+import argparse
 
-def prepare_model(prediction_reshaper, args, device):
+def prepare_model(prediction_reshaper: list[int], args: argparse.Namespace, device: str | torch.device):
     if args.model_type == 'ctm':
         model = ContinuousThoughtMachine(
             iterations=args.iterations,
@@ -44,7 +46,7 @@ def prepare_model(prediction_reshaper, args, device):
 
     return model
 
-def reshape_attention_weights(attention_weights):
+def reshape_attention_weights(attention_weights: torch.Tensor):
     T, B = attention_weights.shape[0], attention_weights.shape[1]
     grid_size = math.sqrt(attention_weights.shape[-1])
     assert grid_size.is_integer(), f'Grid size should be a perfect square, but got {attention_weights.shape[-1]}'
@@ -52,14 +54,14 @@ def reshape_attention_weights(attention_weights):
     attn_weights_reshaped = attention_weights.reshape(T, B, -1, H_ATTENTION, W_ATTENTION)
     return attn_weights_reshaped.mean(2)
 
-def reshape_inputs(inputs, iterations, grid_size):
+def reshape_inputs(inputs: torch.Tensor, iterations: int, grid_size: int):
     reshaped_inputs = inputs.reshape(-1, grid_size, grid_size).unsqueeze(0).repeat(iterations, 1, 1, 1).unsqueeze(2).detach().cpu().numpy()
     return reshaped_inputs
 
-def get_where_most_certain(certainties):
+def get_where_most_certain(certainties: torch.Tensor):
     return certainties[:,1].argmax(-1)
 
-def parse_folder_name(folder_path):
+def parse_folder_name(folder_path: str):
     folder = os.path.basename(folder_path)
 
     lstm_match = re.match(r"lstm_(\d+)", folder)

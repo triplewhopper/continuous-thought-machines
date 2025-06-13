@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from models.ctm import ContinuousThoughtMachine
+from models.ctm import ContinuousThoughtMachine, NeuronSelectType
 
 class ContinuousThoughtMachineSORT(ContinuousThoughtMachine):
     """
@@ -8,25 +8,25 @@ class ContinuousThoughtMachineSORT(ContinuousThoughtMachine):
     """                               
 
     def __init__(self,
-                 iterations,
-                 d_model,
-                 d_input,
-                 heads,
-                 n_synch_out,
-                 n_synch_action,
-                 synapse_depth,
-                 memory_length,
-                 deep_nlms,
-                 memory_hidden_dims,
-                 do_layernorm_nlm,
-                 backbone_type,
-                 positional_embedding_type,
-                 out_dims,
-                 prediction_reshaper=[-1],
-                 dropout=0,
-                 dropout_nlm=None,
-                 neuron_select_type='random-pairing',  
-                 n_random_pairing_self=0,
+                 iterations: int,
+                 d_model: int,
+                 d_input: int,
+                 heads: int,
+                 n_synch_out: int,
+                 n_synch_action: int,
+                 synapse_depth: int,
+                 memory_length: int,
+                 deep_nlms: bool,
+                 memory_hidden_dims: int,
+                 do_layernorm_nlm: bool,
+                 backbone_type: str,
+                 positional_embedding_type: str,
+                 out_dims: int,
+                 prediction_reshaper: list[int] = [-1],
+                 dropout: float = 0,
+                 dropout_nlm: float | None = None,
+                 neuron_select_type: NeuronSelectType = 'random-pairing',  
+                 n_random_pairing_self: int = 0,
                  ):
         super().__init__(
             iterations=iterations,
@@ -61,7 +61,7 @@ class ContinuousThoughtMachineSORT(ContinuousThoughtMachine):
 
 
 
-    def forward(self, x, track=False):
+    def forward(self, x: torch.Tensor, track: bool = False):
         B = x.size(0)
         device = x.device
 

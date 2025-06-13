@@ -19,7 +19,7 @@ class Identity(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         return x
 
 
@@ -33,11 +33,11 @@ class Squeeze(nn.Module):
     Args:
       dim (int): The dimension to squeeze.
     """
-    def __init__(self, dim):
+    def __init__(self, dim: int):
         super().__init__()
         self.dim = dim
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         return x.squeeze(self.dim)
 
 # --- Core CTM Component Modules ---
@@ -63,11 +63,7 @@ class SynapseUNET(nn.Module):
       minimum_width (int): Smallest channel width at the U-Net bottleneck.
       dropout (float): Dropout rate applied within down/up projections.
     """
-    def __init__(self,
-                 out_dims,
-                 depth,
-                 minimum_width=16,
-                 dropout=0.0):
+    def __init__(self, out_dims: int, depth: int, minimum_width: int = 16, dropout: float = 0.0):
         super().__init__()
         self.width_out = out_dims
         self.n_deep = depth # Store depth just for reference if needed
@@ -109,7 +105,7 @@ class SynapseUNET(nn.Module):
             # Skip connection LayerNorm operates on width[i]
             self.skip_lns.append(nn.LayerNorm(int(widths[i])))
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         # Initial projection
         out_first = self.first_projection(x)
 
@@ -180,13 +176,7 @@ class SuperLinear(nn.Module):
       do_norm (bool): Apply Layer Normalization to the input history before linear transform.
       dropout (float): Dropout rate applied to the input.
     """
-    def __init__(self,
-                 in_dims,
-                 out_dims,
-                 N,
-                 T=1.0,
-                 do_norm=False,
-                 dropout=0):
+    def __init__(self, in_dims: int, out_dims: int, N: int, T: float = 1.0, do_norm: bool = False, dropout: float = 0):
         super().__init__()
         # N is the number of neurons (d_model), in_dims is the history length (memory_length)
         self.dropout = nn.Dropout(dropout) if dropout > 0 else Identity()
@@ -208,7 +198,7 @@ class SuperLinear(nn.Module):
         # Learnable temperature/scaler T
         self.register_parameter('T', nn.Parameter(torch.Tensor([T]))) 
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         """
         Args:
             x (torch.Tensor): Input tensor, expected shape (B, N, in_dims)
@@ -239,11 +229,11 @@ class SuperLinear(nn.Module):
 # --- Backbone Modules ---
 
 class ParityBackbone(nn.Module):
-    def __init__(self, n_embeddings, d_embedding):
+    def __init__(self, n_embeddings: int, d_embedding: int):
         super(ParityBackbone, self).__init__()
         self.embedding = nn.Embedding(n_embeddings, d_embedding)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         """
         Maps -1 (negative parity) to 0 and 1 (positive) to 1
         """
@@ -251,16 +241,16 @@ class ParityBackbone(nn.Module):
         return self.embedding(x.long()).transpose(1, 2) # Transpose for compatibility with other backbones
 
 class QAMNISTOperatorEmbeddings(nn.Module):
-    def __init__(self, num_operator_types, d_projection):
+    def __init__(self, num_operator_types: int, d_projection: int):
         super(QAMNISTOperatorEmbeddings, self).__init__()
         self.embedding = nn.Embedding(num_operator_types, d_projection)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # -1 for plus and -2 for minus
         return self.embedding(-x - 1)
 
 class QAMNISTIndexEmbeddings(torch.nn.Module):
-    def __init__(self, max_seq_length, embedding_dim):
+    def __init__(self, max_seq_length: int, embedding_dim: int):
         super().__init__()
         self.max_seq_length = max_seq_length
         self.embedding_dim = embedding_dim
@@ -274,7 +264,9 @@ class QAMNISTIndexEmbeddings(torch.nn.Module):
         
         self.register_buffer('embedding', embedding)
 
-    def forward(self, x):
+    embedding: torch.Tensor
+
+    def forward(self, x: torch.Tensor):
         return self.embedding[x]
     
 class ThoughtSteps:
@@ -288,7 +280,7 @@ class ThoughtSteps:
         total_iterations_for_digits (int): Total number of iterations for digits.
         total_iterations_for_question (int): Total number of iterations for question.
     """
-    def __init__(self, iterations_per_digit, iterations_per_question_part, total_iterations_for_answering, total_iterations_for_digits, total_iterations_for_question):
+    def __init__(self, iterations_per_digit: int, iterations_per_question_part: int, total_iterations_for_answering: int, total_iterations_for_digits: int, total_iterations_for_question: int):
         self.iterations_per_digit = iterations_per_digit
         self.iterations_per_question_part = iterations_per_question_part
         self.total_iterations_for_digits = total_iterations_for_digits
@@ -316,7 +308,7 @@ class MNISTBackbone(nn.Module):
     """
     Simple backbone for MNIST feature extraction.
     """
-    def __init__(self, d_input):
+    def __init__(self, d_input: int):
         super(MNISTBackbone, self).__init__()
         self.layers = nn.Sequential(
             nn.LazyConv2d(d_input, kernel_size=3, stride=1, padding=1),
@@ -329,12 +321,12 @@ class MNISTBackbone(nn.Module):
             nn.MaxPool2d(2, 2),
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.layers(x)
 
 
 class MiniGridBackbone(nn.Module):
-    def __init__(self, d_input, grid_size=7, num_objects=11, num_colors=6, num_states=3, embedding_dim=8):
+    def __init__(self, d_input: int, grid_size: int = 7, num_objects: int = 11, num_colors: int = 6, num_states: int = 3, embedding_dim: int = 8):
         super().__init__()
         self.object_embedding = nn.Embedding(num_objects, embedding_dim)
         self.color_embedding = nn.Embedding(num_colors, embedding_dim)
@@ -351,7 +343,7 @@ class MiniGridBackbone(nn.Module):
             nn.LayerNorm(d_input)
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x.long()
         B, H, W, C = x.size()
 
@@ -370,7 +362,7 @@ class MiniGridBackbone(nn.Module):
         return out
 
 class ClassicControlBackbone(nn.Module):
-    def __init__(self, d_input):
+    def __init__(self, d_input: int):
         super().__init__()
         self.input_projector = nn.Sequential(
             nn.Flatten(),
@@ -382,7 +374,7 @@ class ClassicControlBackbone(nn.Module):
             nn.LayerNorm(d_input)
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.input_projector(x)
 
 
@@ -405,7 +397,7 @@ class ShallowWide(nn.Module):
             nn.GLU(dim=1), # Halves channels to 2048
             nn.BatchNorm2d(2048)
         )
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.layers(x)
 
 
@@ -421,10 +413,10 @@ class PretrainedResNetWrapper(nn.Module):
         resnet_type (str): Name of the ResNet model (e.g., 'resnet18', 'resnet50').
         fine_tune (bool): If False, freezes the weights of the pre-trained backbone.
     """
-    def __init__(self, resnet_type, fine_tune=True):
+    def __init__(self, resnet_type: str, fine_tune: bool = True):
         super(PretrainedResNetWrapper, self).__init__()
         self.resnet_type = resnet_type
-        self.backbone = torch.hub.load('pytorch/vision:v0.10.0', resnet_type, pretrained=True)
+        self.backbone: torch.nn.Module = torch.hub.load('pytorch/vision:v0.10.0', resnet_type, pretrained=True)
 
         if not fine_tune:
             for param in self.backbone.parameters():
@@ -436,7 +428,7 @@ class PretrainedResNetWrapper(nn.Module):
         # Keep layer4 by default, user can modify instance if needed
         # self.backbone.layer4 = Identity()
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Get features from the modified ResNet
         out = self.backbone(x)
 
@@ -474,12 +466,7 @@ class LearnableFourierPositionalEncoding(nn.Module):
         H_dim (int): Hidden dimension of the MLP.
         gamma (float): Initialization scale for the Fourier projection weights (Wr).
     """
-    def __init__(self, d_model,
-                 G=1, M=2,
-                 F_dim=256,
-                 H_dim=128,
-                 gamma=1/2.5,
-                 ):
+    def __init__(self, d_model: int, G: int = 1, M: int = 2, F_dim: int = 256, H_dim: int = 128, gamma: float = 1/2.5):
         super().__init__()
         self.G = G
         self.M = M
@@ -501,7 +488,7 @@ class LearnableFourierPositionalEncoding(nn.Module):
     def init_weights(self):
         nn.init.normal_(self.Wr.weight.data, mean=0, std=self.gamma ** -2)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Computes positional encodings for the input feature map x.
 
@@ -540,16 +527,10 @@ class MultiLearnableFourierPositionalEncoding(nn.Module):
     Args:
         d_model (int): Output dimension of the encoding.
         G, M, F_dim, H_dim: Parameters passed to underlying LearnableFourierPositionalEncoding.
-        gamma_range (list[float]): Min and max gamma values for the linspace.
+        gamma_range (tuple[float, float]): Min and max gamma values for the linspace.
         N (int): Number of parallel embedding modules to create.
     """
-    def __init__(self, d_model,
-                 G=1, M=2,
-                 F_dim=256,
-                 H_dim=128,
-                 gamma_range=[1.0, 0.1], # Default range
-                 N=10,
-                 ):
+    def __init__(self, d_model: int, G: int = 1, M: int = 2, F_dim: int = 256, H_dim: int = 128, gamma_range: tuple[float, float] = (1.0, 0.1), N: int = 10):
         super().__init__()
         self.embedders = nn.ModuleList()
         for gamma in np.linspace(gamma_range[0], gamma_range[1], N):
@@ -560,8 +541,9 @@ class MultiLearnableFourierPositionalEncoding(nn.Module):
         self.register_parameter('combination', torch.nn.Parameter(torch.ones(N), requires_grad=True))
         self.N = N
 
+    combination: torch.nn.Parameter # size: (N,)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Computes combined positional encoding.
 
@@ -598,7 +580,7 @@ class CustomRotationalEmbedding(nn.Module):
     Args:
         d_model (int): Dimensionality of the output embeddings.
     """
-    def __init__(self, d_model):
+    def __init__(self, d_model: int):
         super(CustomRotationalEmbedding, self).__init__()
         # Learnable 2D start vector
         self.register_parameter('start_vector', nn.Parameter(torch.Tensor([0, 1]), requires_grad=True))
@@ -606,7 +588,9 @@ class CustomRotationalEmbedding(nn.Module):
         # Input size 4 comes from concatenating two 2D rotated vectors
         self.projection = nn.Sequential(nn.Linear(4, d_model))
 
-    def forward(self, x):
+    start_vector: torch.nn.Parameter # size: (2,)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Computes rotational positional embeddings based on input width.
 
@@ -665,11 +649,11 @@ class CustomRotationalEmbedding(nn.Module):
         return pe
 
 class CustomRotationalEmbedding1D(nn.Module):
-    def __init__(self, d_model):
+    def __init__(self, d_model: int):
         super(CustomRotationalEmbedding1D, self).__init__()
         self.projection = nn.Linear(2, d_model)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         start_vector = torch.tensor([0., 1.], device=x.device, dtype=torch.float)
         theta_rad = torch.deg2rad(torch.linspace(0, 180, x.size(2), device=x.device))
         cos_theta = torch.cos(theta_rad)

@@ -2,8 +2,10 @@ import torch
 import torch.nn.functional as F
 import re
 import os
+from typing import Any, TypedDict
+from pathlib import Path
 
-def compute_decay(T, params, clamp_lims=(0, 15)):
+def compute_decay(T: int, params: torch.Tensor, clamp_lims: tuple[float, float] = (0, 15)) -> torch.Tensor:
     """
     This function computes exponential decays for learnable synchronisation 
     interactions between pairs of neurons. 
@@ -15,15 +17,15 @@ def compute_decay(T, params, clamp_lims=(0, 15)):
     out = torch.exp(-indices * torch.clamp(params, clamp_lims[0], clamp_lims[1]).unsqueeze(0))
     return out
 
-def add_coord_dim(x, scaled=True):
+def add_coord_dim(x: torch.Tensor, scaled: bool = True) -> torch.Tensor:
     """
     Adds a final dimension to the tensor representing 2D coordinates.
 
     Args:
-        tensor: A PyTorch tensor of shape (B, D, H, W).
+        tensor: A PyTorch tensor of shape (B, H, W).
 
     Returns:
-        A PyTorch tensor of shape (B, D, H, W, 2) with the last dimension
+        A PyTorch tensor of shape (B, H, W, 2) with the last dimension
         representing the 2D coordinates within the HW dimensions.
     """
     B, H, W = x.shape
@@ -35,11 +37,11 @@ def add_coord_dim(x, scaled=True):
         y_coords /= (H-1)
     # Stack coordinates and expand dimensions
     coords = torch.stack((x_coords, y_coords), dim=-1)  # Shape (H, W, 2)
-    coords = coords.unsqueeze(0)  # Shape (1, 1, H, W, 2)
-    coords = coords.repeat(B, 1, 1, 1)  # Shape (B, D, H, W, 2)
+    coords = coords.unsqueeze(0)  # Shape (1, H, W, 2)
+    coords = coords.repeat(B, 1, 1, 1)  # Shape (B, H, W, 2)
     return coords
 
-def compute_normalized_entropy(logits, reduction='mean'):
+def compute_normalized_entropy(logits: torch.Tensor, reduction: str = 'mean') -> torch.Tensor:
     """
     Calculates the normalized entropy of a PyTorch tensor of logits along the 
     final dimension.
@@ -71,24 +73,32 @@ def compute_normalized_entropy(logits, reduction='mean'):
 
     return normalized_entropy
     
-def reshape_predictions(predictions, prediction_reshaper):
+def reshape_predictions(predictions: torch.Tensor, prediction_reshaper: list[int]) -> torch.Tensor:
+    """
+    Args:
+        predictions: A PyTorch tensor of shape (B, ..., T).
+        prediction_reshaper: A list of integers representing the new shape.
+
+    Returns:
+        A PyTorch tensor of shape (B, *prediction_reshaper, T).
+    """
     B, T = predictions.size(0), predictions.size(-1)
     new_shape = [B] + prediction_reshaper + [T]
     rehaped_predictions = predictions.reshape(new_shape)
     return rehaped_predictions
 
-def get_all_log_dirs(root_dir):
-    folders = []
+def get_all_log_dirs(root_dir: str | Path):
+    folders: list[str] = []
     for dirpath, dirnames, filenames in os.walk(root_dir):
         if any(f.endswith(".pt") for f in filenames):
             folders.append(dirpath)
     return folders
 
-def get_latest_checkpoint(log_dir):
+def get_latest_checkpoint(log_dir: str | Path):
     files = [f for f in os.listdir(log_dir) if re.match(r'checkpoint_\d+\.pt', f)]
     return os.path.join(log_dir, max(files, key=lambda f: int(re.search(r'\d+', f).group()))) if files else None
 
-def get_latest_checkpoint_file(filepath, limit=300000):
+def get_latest_checkpoint_file(filepath: str | Path, limit: int = 300000):
     checkpoint_files = get_checkpoint_files(filepath)
     checkpoint_files = [
         f for f in checkpoint_files if int(re.search(r'checkpoint_(\d+)\.pt', f).group(1)) <= limit
@@ -97,23 +107,31 @@ def get_latest_checkpoint_file(filepath, limit=300000):
         return None
     return checkpoint_files[-1]
 
-def get_checkpoint_files(filepath):
+def get_checkpoint_files(filepath: str | Path):
     regex = r'checkpoint_(\d+)\.pt'
     files = [f for f in os.listdir(filepath) if re.match(regex, f)]
     files = sorted(files, key=lambda f: int(re.search(regex, f).group(1)))
     return [os.path.join(filepath, f) for f in files]
 
-def load_checkpoint(checkpoint_path, device):
+def load_checkpoint(checkpoint_path: str | Path, device: str | torch.device):
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     return checkpoint
 
-def get_model_args_from_checkpoint(checkpoint):
+class Checkpoint(TypedDict, total=False):
+    training_iteration: int
+    train_losses: list[float]
+    test_losses: list[float]
+    train_accuracies_most_certain: list[float]
+    test_accuracies_most_certain: list[float]
+    args: dict[str, Any]
+
+def get_model_args_from_checkpoint(checkpoint: Checkpoint):
     if "args" in checkpoint:
         return(checkpoint["args"])
     else:
         raise ValueError("Checkpoint does not contain saved args.")
 
-def get_accuracy_and_loss_from_checkpoint(checkpoint, device="cpu"):
+def get_accuracy_and_loss_from_checkpoint(checkpoint: Checkpoint, device: str | torch.device = "cpu"):
     training_iteration = checkpoint.get('training_iteration', 0)
     train_losses = checkpoint.get('train_losses', [])
     test_losses = checkpoint.get('test_losses', [])

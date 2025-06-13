@@ -248,7 +248,7 @@ if __name__=='__main__':
     iters = []
 
     # Now that everything is initliased, reload if desired
-    scaler = torch.amp.GradScaler("cuda" if "cuda" in device else "cpu", enabled=args.use_amp)
+    scaler = torch.GradScaler("cuda" if "cuda" in device else "cpu", enabled=args.use_amp)
     if args.reload:
         if os.path.isfile(f'{args.log_dir}/checkpoint.pt'):
             print(f'Reloading from: {args.log_dir}/checkpoint.pt')

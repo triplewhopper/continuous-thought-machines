@@ -5,8 +5,8 @@ import numpy as np
 import math
 
 # Local imports (Assuming these contain necessary custom modules)
-from models.modules import *
-from models.utils import * # Assuming compute_decay, compute_normalized_entropy are here
+from models.modules import MNISTBackbone, ThoughtSteps, QAMNISTIndexEmbeddings, QAMNISTOperatorEmbeddings
+from models.utils import compute_decay, compute_normalized_entropy
 
 class LSTMBaseline(nn.Module):
     """
@@ -32,16 +32,16 @@ class LSTMBaseline(nn.Module):
     """
 
     def __init__(self,
-                 iterations,
-                 d_model,
-                 d_input,
-                 heads,
-                 out_dims,
-                 iterations_per_digit,
-                 iterations_per_question_part,
-                 iterations_for_answering,
-                 prediction_reshaper=[-1],
-                 dropout=0,
+                 iterations: int,
+                 d_model: int,
+                 d_input: int,
+                 heads: int,
+                 out_dims: int,
+                 iterations_per_digit: int,
+                 iterations_per_question_part: int,
+                 iterations_for_answering: int,
+                 prediction_reshaper: list[int] = [-1],
+                 dropout: float = 0,
                  ):
         super(LSTMBaseline, self).__init__()
 
@@ -74,7 +74,7 @@ class LSTMBaseline(nn.Module):
         # Output Projection
         self.output_projector = nn.Sequential(nn.LazyLinear(out_dims))
 
-    def compute_certainty(self, current_prediction):
+    def compute_certainty(self, current_prediction: torch.Tensor) -> torch.Tensor:
         """Compute the certainty of the current prediction."""
         B = current_prediction.size(0)
         reshaped_pred = current_prediction.reshape([B] +self.prediction_reshaper)
@@ -82,7 +82,7 @@ class LSTMBaseline(nn.Module):
         current_certainty = torch.stack((ne, 1-ne), -1)
         return current_certainty
 
-    def get_kv_for_step(self, stepi, x, z, thought_steps, prev_input=None, prev_kv=None):
+    def get_kv_for_step(self, stepi: int, x: torch.Tensor, z: torch.Tensor, thought_steps: ThoughtSteps, prev_input: torch.Tensor | None = None, prev_kv: torch.Tensor | None = None):
         is_digit_step, is_question_step, is_answer_step = thought_steps.determine_step_type(stepi)
 
         if is_digit_step:
@@ -113,7 +113,7 @@ class LSTMBaseline(nn.Module):
 
         return kv, current_input
 
-    def forward(self, x, z, track=False):
+    def forward(self, x: torch.Tensor, z: torch.Tensor, track: bool = False):
         """
         Forward pass - Reverted to structure closer to user's working version.
         Executes T=iterations steps.

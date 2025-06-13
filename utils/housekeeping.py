@@ -7,14 +7,13 @@ import os
 import zipfile
 import glob
 
-def zip_python_code(output_filename):
+def zip_python_code(output_filename: str):
     """
     Zips all .py files in the current repository and saves it to the 
     specified output filename.
 
     Args:
-        output_filename: The name of the output zip file. 
-                         Defaults to "python_code_backup.zip".
+        output_filename: The name of the output zip file. Defaults to "python_code_backup.zip".
     """
 
     with zipfile.ZipFile(output_filename, 'w') as zipf:
@@ -24,7 +23,7 @@ def zip_python_code(output_filename):
             nm = file.split('/')[-1]
             zipf.write(os.path.join(root, nm))
 
-def set_seed(seed=42, deterministic=True):
+def set_seed(seed: int = 42, deterministic: bool = True):
     """
     ... and the answer is ... 
     """
