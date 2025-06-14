@@ -1,0 +1,33 @@
+[project]
+name = "continuous-thought-machines"
+version = "0.1.0"
+description = "An implementation of the Continuous Thought Machine (CTM), a model designed to unfold and leverage neural activity as the underlying mechanism for observation and action."
+authors = [
+    { name = "Luke Darlow", email = "lukedarlow@yahoo.com" },
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "autoclip",
+    "datasets",
+    "ffmpeg",
+    "gdown",
+    "gymnasium",
+    "imageio",
+    "ipykernel",
+    "llvmlite",
+    "matplotlib",
+    "mediapy",
+    "minigrid",
+    "numba",
+    "numpy",
+    "opencv-python",
+    "pytest",
+    "python-dotenv",
+    "scikit-learn",
+    "seaborn",
+    "torch<2.7.0",
+    "torchvision",
+    "tqdm",
+    "umap-learn",
+]
